@@ -1,5 +1,7 @@
 /* http_server.c */
 #include "http_server.h"
+#include "network_utils.h"
+#include <stdbool.h>
 
 int init_server(int port) {
     int server_fd;
@@ -44,10 +46,25 @@ int parse_request(const char *raw_request, http_request_t *request) {
     if (raw_request == NULL || request == NULL) {
         return -1;
     }
-    
-    // Parse the request line
-    // Example: GET /index.html HTTP/1.1
-    // TODO: Implement proper parsing with error checking
+
+    char* end_of_line = strstr(raw_request, "\r\n");
+    if (!end_of_line) {
+        return -1;
+    }
+
+    size_t line_length = end_of_line - raw_request;
+    char first_line[MAXLINE];
+
+    strncpy(first_line, raw_request, line_length);
+    first_line[line_length] = '\0';
+
+    // now we have the first line as a proper string
+    char* token = strtok(first_line, ' ');
+    strncpy(request->method, token, 15);
+    token = strtok(NULL, ' ');
+    strncpy(request->uri, token, MAX_URI_LENGTH - 1);
+    token = strtok(NULL, ' ');
+    strncpy(request->version, token, 15);
     
     return 0;
 }
@@ -93,6 +110,7 @@ int main(int argc, char *argv[]) {
     while (1) {
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
+        rio_t rio;
         
         // Accept client connection
         int client_fd = accept(server_fd, (struct sockaddr *)&client_addr, 
@@ -107,7 +125,14 @@ int main(int argc, char *argv[]) {
         // TODO: Read request
         char raw_request[MAX_REQUEST_SIZE];
         // TODO: Implement reading from client_fd into raw_request
-        
+        // remember that we need to read the whole request (can be multiple )
+        bool read_header_status = read_request(&rio, &raw_request, client_fd);
+        if (!read_header_status) {
+            // this is when the request size is too large
+            continue;
+        }
+
+
         // Parse request
         http_request_t request;
         if (parse_request(raw_request, &request) < 0) {
@@ -138,4 +163,30 @@ int main(int argc, char *argv[]) {
     
     close(server_fd);
     return 0;
+}
+
+bool read_request(rio_t* rp, char* dest, int client_fd) {
+    ssize_t curr_size;
+    size_t total;
+    char line[MAXLINE];
+
+    while ((curr_size = rio_readlineb(rp, line, MAXLINE)) > 0) {
+        if (curr_size + total >= MAX_REQUEST_SIZE) {
+            fprintf(stderr, "File too large!");
+            close(client_fd);
+            return false;
+        }
+
+        memcpy(dest + total, line, curr_size);
+        // the line is already copied to destination
+        total += curr_size;
+
+        // check for end of line
+        // the end of http header is supposed to be \r\n
+        if (curr_size == 2 && line[0] == '\r' && line[1] == '\n') {
+            return true;
+        }
+    }
+
+    return false;
 }
