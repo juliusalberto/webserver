@@ -24,6 +24,7 @@ typedef struct {
     char version[16];     // HTTP/1.1
     char host[256];       // Required header
     int connection_close; // Connection: close header present?
+    char body[4096]; //max 4 KB
     // TODO: Add more headers as needed
 } http_request_t;
 
