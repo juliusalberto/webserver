@@ -116,7 +116,7 @@ int parse_request(const char *raw_request, http_request_t *request) {
         line_start = end_of_line + 2;
     }
 
-    if (strlen(request->host) == 0) {
+    if (!request->host[0] || request->host == NULL) {
         return -1;
     }
 
@@ -234,7 +234,7 @@ int main(int argc, char *argv[]) {
 
 bool read_request(rio_t* rp, char* dest, int client_fd) {
     ssize_t curr_size;
-    size_t total;
+    size_t total = 0;
     char line[MAXLINE];
 
     while ((curr_size = rio_readlineb(rp, line, MAXLINE)) > 0) {

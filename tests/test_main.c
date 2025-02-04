@@ -30,6 +30,8 @@ void test_parse_request() {
     assert(strcmp(request.uri, "/index.html") == 0);
     assert(strcmp(request.version, "HTTP/1.1") == 0);
     assert(strcmp(request.host, "www.example.com") == 0);
+
+    memset(&request, 0, sizeof(http_request_t));
     
     // Test 2: Missing Host header (should fail)
     char bad_request[] = 
@@ -37,6 +39,7 @@ void test_parse_request() {
         "Connection: keep-alive\r\n"
         "\r\n";
     assert(parse_request(bad_request, &request) == -1);
+    memset(&request, 0, sizeof(http_request_t));
 
     // Test 3: Request with body
     char post_request[] = 
