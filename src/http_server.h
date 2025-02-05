@@ -35,6 +35,7 @@ typedef struct {
     char content_type[128];   // text/html, image/jpeg, etc.
     size_t content_length;    // Length of the body
     int connection_close;     // Whether to close connection
+    char time_str[100];          // Last Modified
     // TODO: Add more headers as needed
 } http_response_t;
 
