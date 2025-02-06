@@ -61,8 +61,8 @@ void test_generate_response() {
     // Create test environment
     mkdir(docroot, 0755);
     // Create test files with different permissions
-    FILE* fp = fopen("tmp/test_www/test.txt", "w");
-    fprintf(&fp, "Hello world!");
+    FILE* fp = fopen("/tmp/test_www/test.txt", "w");
+    fprintf(fp, "Hello world!");
 
     struct stat file_stat;
     stat("tmp/test_www/test.txt", &file_stat);
@@ -79,15 +79,13 @@ void test_generate_response() {
     // - Last-Modified header present and correct
     // - Server header present
 
-    http_request_t request;
-    http_response_t response;
     char test_request[] = 
     "GET /index.html HTTP/1.1\r\n"
     "Host: www.example.com\r\n"
     "Connection: keep-alive\r\n"
     "\r\n";
 
-    parse_request(&test_request, &request);
+    parse_request(test_request, &request);
     generate_response(&request, &response, &docroot);
 
     // create a text file with the text "Hello World"
@@ -102,7 +100,11 @@ void test_generate_response() {
     // Create file with no read permissions
     // Verify proper 403 response
 
-    
+    http_response_t forbidden_response;
+    chmod("/tmp/test_www/test.txt", 0000);
+    generate_response(&request, &forbidden_response, &docroot);
+    assert(response.status_code == 403);
+    assert(strcmp(response.status_text, "Forbidden") == 0);
 
     // Test 3: 404 Not Found
     // Request non-existent file
