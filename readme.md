@@ -8,14 +8,14 @@ This project implements a subset of the HTTP/1.1 protocol. The server (is planne
 ### Completed Components:
 - [x] Basic server initialization and socket setup
 - [x] Initial request parsing structure
-- [] Complete request parsing implementation
-- [] Response generation
-- [] Response sending
-- [] Connection timeout handling
-- [] Threading/concurrency support
-- [] Connection: close header handling
-- [] Error response handling (400, 403, 404)
-- [] Memory management and cleanup
+- [x] Complete request parsing implementation
+- [x] Response generation
+- [ ] Response sending
+- [ ] Connection timeout handling
+- [ ] Threading/concurrency support
+- [ ] Connection: close header handling
+- [x] Error response handling (400, 403, 404)
+- [ ] Memory management and cleanup
 
 ## Building and Running
 
