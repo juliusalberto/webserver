@@ -2,12 +2,24 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <network_utils.h>
 #include "../src/http_server.h"
+
+#define CHECK_OR_DIE(expr, msg) \
+   do { \
+       if (!(expr)) { \
+           perror(msg); \
+           exit(1); \
+       } \
+   } while(0)
 
 // Forward declarations for test functions
 void test_parse_request(void);
 void test_generate_response(void);
 void cleanup(void);
+
+static char* HOST = "localhost";
+static char* PORT = "1025";
 
 #define TEST_ASSERT(expr) do { \
     if (!(expr)) { \
@@ -181,4 +193,86 @@ void test_generate_response(void) {
     TEST_ASSERT(strcmp(non_existent_response.status_text, "Not Found") == 0);
 
     // Test 4: Directory traversal attempt
+}
+
+void test_send_response_good(void) {
+    rio_t rio;
+    
+    int server_fd = open_clientfd(HOST, PORT);
+    CHECK_OR_DIE(server_fd != -1, "open client fd");
+    rio_readinitb(&rio, server_fd);
+
+    char test_request[] = 
+        "GET /test_send.txt HTTP/1.1\r\n"
+        "Host: www.example.com\r\n"
+        "Connection: keep-alive\r\n"
+        "\r\n";
+
+    CHECK_OR_DIE(rio_writen(server_fd, test_request, sizeof(test_request)) == sizeof(test_request), "send request");
+
+    char line_buf[MAXLINE];
+
+    // read status
+    CHECK_OR_DIE(rio_readlineb(&rio, line_buf, MAXLINE) > 0, "read status error");
+    CHECK_OR_DIE(line_buf != NULL, "line buffer");
+
+    // check if the status code is 200 OK
+    char* protocol = strtok(line_buf, " ");     // "HTTP/1.1"
+    char* status_code = strtok(NULL, " ");    // "200"
+    char* status_text = strtok(NULL, "\r\n"); // "OK"
+    int content_length = -1;
+
+    TEST_ASSERT(strcmp(protocol, "HTTP/1.1") == 0);
+    TEST_ASSERT(strcmp(status_code, "200") == 0);
+    TEST_ASSERT(strcmp(status_text, "OK") == 0);
+
+    // loop through the header to find the content-length
+    while (rio_readlineb(&rio, line_buf, MAXLINE) > 0) {
+        if (strcmp(line_buf, "\r\n") == 0) {
+            break;
+        }
+
+        char* key = strtok(line_buf, ":");
+
+        if (key) {
+            char* value = key + strlen(key) + 1;
+            // strip dangling spaces
+            while (*value == ' ') {
+                value++;
+            }
+
+            if (strcasecmp(key, "Content-Length") == 0) {
+                content_length = atoi(value);
+            }
+        }
+    }
+
+    CHECK_OR_DIE(content_length != -1, "no content length");
+
+    // if we're here this means that we're alr at the start of the body
+    char* content = malloc(content_length);
+    CHECK_OR_DIE(content != NULL, "malloc content");
+
+    CHECK_OR_DIE(rio_readnb(&rio, content, content_length) == content_length, "reading file error");
+
+    // compare the file w/ the file in the /tests/resources/test_send.txt
+    char filepath[MAXLINE];
+    snprintf(filepath, MAXLINE, "%s/tests/resources/test_send.txt", getenv("PWD"));
+    FILE* expected_fp = fopen(filepath, "r");
+
+    CHECK_OR_DIE(expected_fp != NULL, "file open");
+
+    struct stat st;
+    CHECK_OR_DIE(stat(filepath, &st) != -1, "stat");
+
+    char* expected_content = malloc(st.st_size);
+    CHECK_OR_DIE(fread(expected_content, 1, st.st_size, expected_fp) >= content_length, "read expected content");
+
+    TEST_ASSERT(st.st_size == content_length);
+    TEST_ASSERT(memcmp(expected_content, content, content_length) == 0);
+
+    free(content);
+    free(expected_content);
+    fclose(expected_fp);
+    close(server_fd);
 }
