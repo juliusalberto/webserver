@@ -1,23 +1,47 @@
 #include <stdio.h>
-#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include "../src/http_server.h"
 
-// Declare all test functions
+// Forward declarations for test functions
 void test_parse_request(void);
+void test_generate_response(void);
+void cleanup(void);
 
+#define TEST_ASSERT(expr) do { \
+    if (!(expr)) { \
+        fprintf(stderr, "Assertion failed: %s, function %s, file %s, line %d.\n", \
+                #expr, __func__, __FILE__, __LINE__); \
+        cleanup(); \
+        exit(EXIT_FAILURE); \
+    } \
+} while (0)
+
+static const char *docroot = "/private/tmp/test_www";
+static const char *test_file_path = "/private/tmp/test_www/test.txt";
+static const char *forbidden_file_path = "/private/tmp/test_www/forbidden.txt";
 
 int main(void) {
     printf("Running HTTP parser tests...\n");
 
     test_parse_request();
-    // ... other test calls
+    test_generate_response();
+    
+    // Final cleanup (in case all tests pass)
+    cleanup();
     
     printf("All tests passed!\n");
     return 0;
 }
 
-void test_parse_request() {
+void cleanup(void) {
+    remove(test_file_path);
+    remove(forbidden_file_path);
+    rmdir(docroot);
+}
+
+void test_parse_request(void) {
     http_request_t request;
     char test_request[] = 
         "GET /index.html HTTP/1.1\r\n"
@@ -26,11 +50,11 @@ void test_parse_request() {
         "\r\n";
     
     // Test 1: Basic GET request
-    assert(parse_request(test_request, &request) == 0);
-    assert(strcmp(request.method, "GET") == 0);
-    assert(strcmp(request.uri, "/index.html") == 0);
-    assert(strcmp(request.version, "HTTP/1.1") == 0);
-    assert(strcmp(request.host, "www.example.com") == 0);
+    TEST_ASSERT(parse_request(test_request, &request) == 0);
+    TEST_ASSERT(strcmp(request.method, "GET") == 0);
+    TEST_ASSERT(strcmp(request.uri, "/index.html") == 0);
+    TEST_ASSERT(strcmp(request.version, "HTTP/1.1") == 0);
+    TEST_ASSERT(strcmp(request.host, "www.example.com") == 0);
 
     memset(&request, 0, sizeof(http_request_t));
     
@@ -39,7 +63,7 @@ void test_parse_request() {
         "GET /index.html HTTP/1.1\r\n"
         "Connection: keep-alive\r\n"
         "\r\n";
-    assert(parse_request(bad_request, &request) == -1);
+    TEST_ASSERT(parse_request(bad_request, &request) == -1);
     memset(&request, 0, sizeof(http_request_t));
 
     // Test 3: Request with body
@@ -49,71 +73,112 @@ void test_parse_request() {
         "Content-Length: 11\r\n"
         "\r\n"
         "hello world";
-    assert(parse_request(post_request, &request) == 0);
-    assert(strncmp(request.body, "hello world", 11) == 0);
+    TEST_ASSERT(parse_request(post_request, &request) == 0);
+    TEST_ASSERT(strncmp(request.body, "hello world", 11) == 0);
 }
 
-void test_generate_response() {
+void test_generate_response(void) {
     http_request_t request;
     http_response_t response;
-    char docroot[] = "/tmp/test_www";  // Test document root
-    
-    // Create test environment
-    mkdir(docroot, 0755);
-    // Create test files with different permissions
-    FILE* fp = fopen("/tmp/test_www/test.txt", "w");
-    fprintf(fp, "Hello world!");
+    char docroot_local[256];
+    snprintf(docroot_local, sizeof(docroot_local), "%s", docroot);
 
+    // Create test environment: make sure the docroot exists
+    if (mkdir(docroot, 0755) != 0) {
+        if (errno != EEXIST) {  // Ignore error if directory already exists
+            perror("mkdir");
+            exit(1);
+        }
+    }
+    
+    // -----------------------------------------------------
+    // Test 1: 200 OK for test.txt
+    // -----------------------------------------------------
+    const char *doc_text = "Hello world!";
+    FILE* fp = fopen(test_file_path, "w");
+    if (fp == NULL) {
+        perror("fopen test.txt");
+        exit(1);
+    }
+    fprintf(fp, "%s", doc_text);
+    fflush(fp);
+    fclose(fp);
+
+    // Get file stats for test.txt to compare Last-Modified header etc.
     struct stat file_stat;
-    stat("tmp/test_www/test.txt", &file_stat);
-    time_t last_mod = file_stat.st_mtime;
+    if (stat(test_file_path, &file_stat) != 0) {
+        perror("stat test.txt");
+        exit(1);
+    }
     char time_str[100];
     struct tm* tm_info = gmtime(&file_stat.st_mtime);
-    strftime(time_str, 100, "%a, %d %b %Y %H:%M:%S GMT", tm_info);
-
-    // Test 1: 200 OK for existing readable file
-    // Verify:
-    // - Status code is 200
-    // - Content-Type is correct
-    // - Content-Length matches file size
-    // - Last-Modified header present and correct
-    // - Server header present
+    strftime(time_str, sizeof(time_str), "%a, %d %b %Y %H:%M:%S GMT", tm_info);
 
     char test_request[] = 
-    "GET /index.html HTTP/1.1\r\n"
-    "Host: www.example.com\r\n"
-    "Connection: keep-alive\r\n"
-    "\r\n";
+        "GET /test.txt HTTP/1.1\r\n"
+        "Host: www.example.com\r\n"
+        "Connection: keep-alive\r\n"
+        "\r\n";
 
-    parse_request(test_request, &request);
-    generate_response(&request, &response, &docroot);
+    memset(&request, 0, sizeof(request));
+    TEST_ASSERT(parse_request(test_request, &request) == 0);
+    generate_response(&request, &response, docroot);
 
-    // create a text file with the text "Hello World"
+    TEST_ASSERT(response.status_code == 200);
+    TEST_ASSERT(strcmp(response.status_text, "OK") == 0);
+    TEST_ASSERT(strcmp(response.content_type, "application/octet-stream") == 0);
+    TEST_ASSERT(strcmp(response.time_str, time_str) == 0);
+    TEST_ASSERT(file_stat.st_size == response.content_length);
+    TEST_ASSERT(strcmp(response.content, doc_text) == 0);
 
-    assert(response.status_code == 200);
-    assert(strcmp(response.content_type, "application/octet-stream") == 0);
-    assert(strcmp(response.time_str, time_str) == 0);
-    assert(strcmp(response.status_text, "OK") == 0);
-    assert(file_stat.st_size == response.content_length);
-
-    // Test 2: 403 Forbidden
-    // Create file with no read permissions
-    // Verify proper 403 response
-
+    // -----------------------------------------------------
+    // Test 2: 403 Forbidden for a file with no read rights
+    // -----------------------------------------------------
+    const char *forbidden_text = "This file should be forbidden";
+    
+    FILE* fp2 = fopen(forbidden_file_path, "w");
+    if (fp2 == NULL) {
+        perror("fopen forbidden.txt");
+        exit(1);
+    }
+    fprintf(fp2, "%s", forbidden_text);
+    fflush(fp2);
+    fclose(fp2);
+    
+    // Remove all permissions from forbidden.txt
+    if (chmod(forbidden_file_path, 0000) != 0) {
+        perror("chmod forbidden.txt");
+        exit(1);
+    }
+    
+    char forbidden_request[] =
+        "GET /forbidden.txt HTTP/1.1\r\n"
+        "Host: www.example.com\r\n"
+        "Connection: keep-alive\r\n"
+        "\r\n";
+    
+    memset(&request, 0, sizeof(request));
+    TEST_ASSERT(parse_request(forbidden_request, &request) == 0);
     http_response_t forbidden_response;
-    chmod("/tmp/test_www/test.txt", 0000);
-    generate_response(&request, &forbidden_response, &docroot);
-    assert(response.status_code == 403);
-    assert(strcmp(response.status_text, "Forbidden") == 0);
+    generate_response(&request, &forbidden_response, docroot);
+    TEST_ASSERT(forbidden_response.status_code == 403);
+    TEST_ASSERT(strcmp(forbidden_response.status_text, "Forbidden") == 0);
 
-    // Test 3: 404 Not Found
-    // Request non-existent file
-    // Verify proper 404 response
+    // -----------------------------------------------------
+    // Test 3: 404 File Not Found for non-existent file
+    // -----------------------------------------------------
+    char non_existent_request[] =
+        "GET /blabla.txt HTTP/1.1\r\n"
+        "Host: www.example.com\r\n"
+        "Connection: keep-alive\r\n"
+        "\r\n";
+
+    memset(&request, 0, sizeof(request));
+    TEST_ASSERT(parse_request(non_existent_request, &request) == 0);
+    http_response_t non_existent_response;
+    generate_response(&request, &non_existent_response, docroot);
+    TEST_ASSERT(non_existent_response.status_code == 404);
+    TEST_ASSERT(strcmp(non_existent_response.status_text, "Not Found") == 0);
 
     // Test 4: Directory traversal attempt
-    // Try to access file outside docroot
-    // Should return 404
-
-    // Cleanup
-    // Remove test files and directory
 }
