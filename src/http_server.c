@@ -1,7 +1,6 @@
 /* http_server.c */
 #include "http_server.h"
 #include "network_utils.h"
-#include <stdbool.h>
 
 bool read_request(rio_t* rp, char* dest, int client_fd);
 int init_server(int port);
@@ -110,6 +109,10 @@ int parse_request(const char *raw_request, http_request_t *request) {
                 strcpy(request->host, value);
             } else if (strcasecmp(key, "Content-Length") == 0) {
                 content_length = atoi(value);
+            } else if (strcasecmp(key, "Connection") == 0) {
+                if (strcmp(value, "close") == 0) {
+                    request->connection_close = true;
+                } 
             }
         }
 
@@ -138,7 +141,114 @@ int generate_response(const http_request_t *request, http_response_t *response,
     // This is where you generate the appropriate response
     // based on the request and document root
     // TODO: Implement this function
+    char new_filename[MAX_URI_LENGTH];
+    const char* filename = request->uri;
+    if (strcmp(filename, "/") == 0) {
+        snprintf(new_filename, MAX_URI_LENGTH, "/index.html");
+        filename = new_filename;
+    }
+
+    char combined_path[MAX_URI_LENGTH];
+    snprintf(combined_path, MAX_URI_LENGTH, "%s%s", docroot, filename);
+
+    char* real_path = realpath(combined_path, NULL);
+    if (real_path == NULL) {
+        response->status_code = 404;
+        strcpy(response->status_text, "Not Found");
+        return -1;
+    }
+    if (strlen(real_path) > MAX_URI_LENGTH) {
+        free(real_path);
+        return -1;
+    }
+
+    if (strncmp(real_path, docroot, strlen(docroot)) != 0) {
+        response->status_code = 404;
+        strcpy(response->status_text, "Not Found");
+        free(real_path);
+        return -1;
+    }
+
+    FILE* fp = fopen(real_path, "r"); // open file
+
+    if (fp == NULL) {
+        if (errno == ENOENT) {
+            // File does not exist
+            response->status_code = 404;
+            strcpy(response->status_text, "Not Found");
+        } else if (errno == EACCES) {
+            // File exists but permission is denied
+            response->status_code = 403;
+            strcpy(response->status_text, "Forbidden");
+        } else {
+            // Other error conditions
+            response->status_code = 500;
+            strcpy(response->status_text, "Internal Server Error");
+        }
+        return -1;
+    }
+
+    // get file stat to get its last modified + size
+
+    struct stat file_stat;
+    if (stat(real_path, &file_stat) == -1) {
+        fclose(fp);
+        return -1;
+    }
+
+    if (!(file_stat.st_mode & S_IROTH)) {
+        response->status_code = 403;
+        strcpy(response->status_text, "Forbidden");
+        free(real_path);
+        return -1;
+    }
+
+    response->content_length = file_stat.st_size;
+    strftime(response->time_str, 100, "%a, %d %b %Y %H:%M:%S GMT", gmtime(&file_stat.st_mtime));
     
+    // get content type
+    char* ext = strrchr(filename, '.');
+    if (ext != NULL) {
+        if (strcasecmp(ext, ".html") == 0) {
+            strcpy(response->content_type, "text/html");
+        } else if (strcasecmp(ext, ".jpg") == 0) {
+            strcpy(response->content_type, "image/jpeg");
+        } else if (strcasecmp(ext, ".png") == 0) {
+            strcpy(response->content_type, "image/png");
+        } else {
+            strcpy(response->content_type, "application/octet-stream");
+        }
+    } else {
+        strcpy(response->content_type, "application/octet-stream");
+    }
+
+    // read content
+    response->content = malloc(file_stat.st_size);
+    if (response->content == NULL) {
+        response->status_code = 500;  // Internal Server Error
+        strcpy(response->status_text, "Internal Server Error");
+        free(real_path);
+        fclose(fp);
+        return -1;
+    }
+
+    if (fread(response->content, 1, file_stat.st_size, fp) != file_stat.st_size) {
+        free(response->content);
+        free(real_path);
+        fclose(fp);
+        return -1;
+    }
+
+    // check connection close
+    if (request->connection_close) {
+        response->connection_close = true;
+    }
+
+    response->status_code = 200;
+    strcpy(response->status_text, "OK");
+
+    free(real_path);
+    fclose(fp);
     return 0;
 }
 

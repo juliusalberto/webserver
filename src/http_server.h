@@ -10,6 +10,7 @@
 #include <netinet/in.h>
 #include <pthread.h>
 #include <errno.h>
+#include <stdbool.h>
 
 /* Constants */
 #define MAX_REQUEST_SIZE 8192
@@ -23,7 +24,7 @@ typedef struct {
     char uri[MAX_URI_LENGTH];     // /path/to/file
     char version[16];     // HTTP/1.1
     char host[256];       // Required header
-    int connection_close; // Connection: close header present?
+    bool connection_close; // Connection: close header present?
     char body[4096]; //max 4 KB
     // TODO: Add more headers as needed
 } http_request_t;
@@ -31,11 +32,12 @@ typedef struct {
 /* HTTP Response Structure */
 typedef struct {
     int status_code;          // 200, 404, etc.
-    char *status_text;        // OK, Not Found, etc.
+    char status_text[128];        // OK, Not Found, etc.
     char content_type[128];   // text/html, image/jpeg, etc.
     size_t content_length;    // Length of the body
-    int connection_close;     // Whether to close connection
+    bool connection_close;     // Whether to close connection
     char time_str[100];          // Last Modified
+    char* content;
     // TODO: Add more headers as needed
 } http_response_t;
 
