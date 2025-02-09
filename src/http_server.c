@@ -7,8 +7,7 @@ int init_server(int port);
 int parse_request(const char *raw_request, http_request_t *request);
 int generate_response(const http_request_t *request, http_response_t *response, 
                      const char *docroot);
-int send_response(int client_fd, const http_response_t *response, 
-                 const char *content);
+int send_response(int client_fd, const http_response_t *response);
 
 int init_server(int port) {
     int server_fd;
@@ -253,11 +252,44 @@ int generate_response(const http_request_t *request, http_response_t *response,
 }
 
 // TODO: Implement send_response()
-int send_response(int client_fd, const http_response_t *response, 
-                 const char *content) {
+int send_response(int client_fd, const http_response_t *response) {
     // This is where you send the response back to the client
     // TODO: Implement this function
+    int n_bytes = 0;
+    char buf[MAXBUF];
     
+    n_bytes += sprintf(buf, "HTTP/1.1 %d %s\r\n", response->status_code, response->status_text);
+    n_bytes += sprintf(buf + n_bytes, "Server: TinyServer\r\n");
+
+    if (response->connection_close) {
+        n_bytes += sprintf(buf + n_bytes, "Connection: close\r\n");
+    }
+    if (response->status_code == 200) {
+        n_bytes += sprintf(buf + n_bytes, "Last-Modified: %s\r\n", response->time_str);
+    }
+   
+    n_bytes += sprintf(buf + n_bytes, "Content-length: %lu\r\n", response->content_length);
+    n_bytes += sprintf(buf + n_bytes, "Content-type: %s\r\n", response->content_type);
+    n_bytes += sprintf(buf + n_bytes, "\r\n");
+
+    if (n_bytes > MAXBUF) {
+        printf("Buffer overflow");
+        return -1;
+    }
+
+    if (rio_writen(client_fd, buf, strlen(buf)) != n_bytes) {
+        printf("Wrong header length being sent");
+        return -1;
+    }
+    printf("Response headers:\n");
+    printf("%s", buf);
+
+    if (rio_writen(client_fd, response->content, response->content_length) != response->content_length) {
+        printf("Wrong body length being sent");
+        return -1;
+    }
+    free(response->content);
+
     return 0;
 }
 
@@ -290,6 +322,7 @@ int main(int argc, char *argv[]) {
         // At this point we're already creating the socket, binding the socket, and listening for 
         // connections
         int client_fd = accept(server_fd, (struct sockaddr*) &client_addr, &client_len);
+        printf("Accepted client\n");
         if (client_fd < 0) {
             perror("accept failed");
             continue;
@@ -327,7 +360,7 @@ int main(int argc, char *argv[]) {
         }
         
         // Send response
-        if (send_response(client_fd, &response, content) < 0) {
+        if (send_response(client_fd, &response) < 0) {
             // TODO: Handle send error
         }
         

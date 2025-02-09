@@ -69,7 +69,6 @@ int generate_response(const http_request_t *request, http_response_t *response,
  * Returns: 0 on success, -1 on error
  * TODO: Implement this function
  */
-int send_response(int client_fd, const http_response_t *response, 
-                 const char *content);
+int send_response(int client_fd, const http_response_t *response);
 
 #endif /* HTTP_SERVER_H */

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <network_utils.h>
+#include "../src/network_utils.h"
 #include "../src/http_server.h"
 
 #define CHECK_OR_DIE(expr, msg) \
@@ -17,6 +17,7 @@
 void test_parse_request(void);
 void test_generate_response(void);
 void cleanup(void);
+void test_send_response_good(void);
 
 static char* HOST = "localhost";
 static char* PORT = "1025";
@@ -39,6 +40,7 @@ int main(void) {
 
     test_parse_request();
     test_generate_response();
+    test_send_response_good();
     
     // Final cleanup (in case all tests pass)
     cleanup();
@@ -193,6 +195,8 @@ void test_generate_response(void) {
     TEST_ASSERT(strcmp(non_existent_response.status_text, "Not Found") == 0);
 
     // Test 4: Directory traversal attempt
+
+    cleanup();
 }
 
 void test_send_response_good(void) {
@@ -266,7 +270,10 @@ void test_send_response_good(void) {
     CHECK_OR_DIE(stat(filepath, &st) != -1, "stat");
 
     char* expected_content = malloc(st.st_size);
-    CHECK_OR_DIE(fread(expected_content, 1, st.st_size, expected_fp) >= content_length, "read expected content");
+    size_t expected_length = fread(expected_content, 1, st.st_size, expected_fp);
+    printf("Content-length: %d\n", content_length);
+    printf("Expected length: %lu\n", expected_length);
+    CHECK_OR_DIE(expected_length >= content_length, "read expected content");
 
     TEST_ASSERT(st.st_size == content_length);
     TEST_ASSERT(memcmp(expected_content, content, content_length) == 0);
