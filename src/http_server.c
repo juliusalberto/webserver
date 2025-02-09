@@ -1,6 +1,9 @@
 /* http_server.c */
 #include "http_server.h"
 #include "network_utils.h"
+#include <signal.h>
+
+
 
 bool read_request(rio_t* rp, char* dest, int client_fd);
 int init_server(int port);
@@ -8,6 +11,11 @@ int parse_request(const char *raw_request, http_request_t *request);
 int generate_response(const http_request_t *request, http_response_t *response, 
                      const char *docroot);
 int send_response(int client_fd, const http_response_t *response);
+int send_error_response(int client_fd, const http_response_t* response);
+
+void handle_sigint(int sig) {
+    exit(0);
+}
 
 int init_server(int port) {
     int server_fd;
@@ -118,7 +126,7 @@ int parse_request(const char *raw_request, http_request_t *request) {
         line_start = end_of_line + 2;
     }
 
-    if (!request->host[0] || request->host == NULL) {
+    if (!request->host[0]) {
         return -1;
     }
 
@@ -257,20 +265,28 @@ int send_response(int client_fd, const http_response_t *response) {
     // TODO: Implement this function
     int n_bytes = 0;
     char buf[MAXBUF];
+    size_t remaining = MAXBUF;
     
-    n_bytes += sprintf(buf, "HTTP/1.1 %d %s\r\n", response->status_code, response->status_text);
-    n_bytes += sprintf(buf + n_bytes, "Server: TinyServer\r\n");
+    n_bytes += snprintf(buf, remaining, "HTTP/1.1 %d %s\r\n", response->status_code, response->status_text);
+    remaining -= n_bytes;
+    n_bytes += snprintf(buf + n_bytes, remaining, "Server: TinyServer\r\n");
+    remaining -= n_bytes;
 
     if (response->connection_close) {
-        n_bytes += sprintf(buf + n_bytes, "Connection: close\r\n");
+        n_bytes += snprintf(buf + n_bytes, remaining, "Connection: close\r\n");
+        remaining -= n_bytes;
     }
     if (response->status_code == 200) {
-        n_bytes += sprintf(buf + n_bytes, "Last-Modified: %s\r\n", response->time_str);
+        n_bytes += snprintf(buf + n_bytes, remaining, "Last-Modified: %s\r\n", response->time_str);
+        remaining -= n_bytes;
     }
    
-    n_bytes += sprintf(buf + n_bytes, "Content-length: %lu\r\n", response->content_length);
-    n_bytes += sprintf(buf + n_bytes, "Content-type: %s\r\n", response->content_type);
-    n_bytes += sprintf(buf + n_bytes, "\r\n");
+    n_bytes += snprintf(buf + n_bytes, remaining, "Content-length: %lu\r\n", response->content_length);
+    remaining -= n_bytes;
+    n_bytes += snprintf(buf + n_bytes, remaining, "Content-type: %s\r\n", response->content_type);
+    remaining -= n_bytes;
+    n_bytes += snprintf(buf + n_bytes, remaining, "\r\n");
+    remaining -= n_bytes;
 
     if (n_bytes > MAXBUF) {
         printf("Buffer overflow");
@@ -293,8 +309,23 @@ int send_response(int client_fd, const http_response_t *response) {
     return 0;
 }
 
+int send_error_response(int client_fd, const http_response_t* response) {
+    char buf[MAXBUF];
+    int n_bytes = 0;
+    
+    n_bytes += snprintf(buf, MAXBUF, "HTTP/1.1 %d %s\r\n", response->status_code, response->status_text);
+    if (rio_writen(client_fd, buf, strlen(buf)) != n_bytes) {
+        printf("Wrong header length being sent");
+        return -1;
+    }
+    printf("Response headers:\n");
+    printf("%s", buf);
+    return 0;
+}
+
 #ifndef TESTING
 int main(int argc, char *argv[]) {
+    signal(SIGINT, handle_sigint);
     if (argc != 3) {
         fprintf(stderr, "Usage: %s <port> <docroot>\n", argv[0]);
         return 1;
@@ -335,7 +366,7 @@ int main(int argc, char *argv[]) {
         // TODO: Implement reading from client_fd into raw_request
         // remember that we need to read the whole request (can be multiple )
         rio_readinitb(&rio, client_fd);
-        bool read_header_status = read_request(&rio, &raw_request, client_fd);
+        bool read_header_status = read_request(&rio, raw_request, client_fd);
         if (!read_header_status) {
             // this is when the request size is too large
             continue;
@@ -352,9 +383,9 @@ int main(int argc, char *argv[]) {
         
         // Generate response
         http_response_t response;
-        char *content = NULL;
         if (generate_response(&request, &response, docroot) < 0) {
             // TODO: Send appropriate error response
+            send_error_response(client_fd, &response);
             close(client_fd);
             continue;
         }
@@ -362,6 +393,8 @@ int main(int argc, char *argv[]) {
         // Send response
         if (send_response(client_fd, &response) < 0) {
             // TODO: Handle send error
+            close(client_fd);
+            continue;
         }
         
         // TODO: Handle connection: close header

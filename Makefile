@@ -1,6 +1,7 @@
 CC=gcc
 CFLAGS=-Wall -Wextra -g
 LDFLAGS=-pthread
+SANITIZE_FLAGS = -fsanitize=address -fno-omit-frame-pointer
 
 # Directories
 SRC_DIR=src
@@ -24,9 +25,9 @@ all: $(TARGET)
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
-$(TARGET): CFLAGS += -U TESTING
+$(TARGET): CFLAGS += -U TESTING $(SANITIZE_FLAGS)
 $(TARGET): $(OBJ_DIR) $(OBJS)
-	$(CC) $(OBJS) -o $(TARGET) $(LDFLAGS)
+	$(CC) $(OBJS) -o $(TARGET) $(LDFLAGS) $(SANITIZE_FLAGS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -43,7 +44,7 @@ $(OBJ_DIR)/%.o: $(TEST_DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 memcheck: $(TARGET)
-	valgrind --leak-check=full --show-leak-kinds=all ./$(TARGET) 8080 ./www
+	ASAN_OPTIONS=detect_leaks=1 ./$(TARGET) 8080 ./www
 
 clean:
 	rm -rf $(OBJ_DIR) $(TARGET) $(TEST_TARGET)
