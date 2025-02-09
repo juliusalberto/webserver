@@ -68,5 +68,25 @@ class TestHTTPServer(unittest.TestCase):
 
             print(f"content: {content}")
 
+    def test_send_response_404(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((self.HOST, self.PORT))
+            
+            test_request = (
+                "GET /nonexistent.txt HTTP/1.1\r\n"
+                "Host: www.example.com\r\n"
+                "Connection: keep-alive\r\n"
+                "\r\n"
+            )
+            s.sendall(test_request.encode())
+            
+            f = s.makefile('rb')
+            response_line = f.readline().decode()
+            protocol, status_code, status_text = response_line.split(' ', 2)
+            
+            self.assertEqual(status_code, "404")
+            self.assertEqual(status_text.strip(), "Not Found")
+
+
 if __name__ == '__main__':
     unittest.main()
