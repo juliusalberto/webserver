@@ -24,6 +24,7 @@ all: $(TARGET)
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
+$(TARGET): CFLAGS += -U TESTING
 $(TARGET): $(OBJ_DIR) $(OBJS)
 	$(CC) $(OBJS) -o $(TARGET) $(LDFLAGS)
 
