@@ -250,7 +250,7 @@ int generate_response(const http_request_t *request, http_response_t *response,
     }
 
     // read content
-    response->content = malloc(file_stat.st_size);
+    response->content = malloc(file_stat.st_size + 1);
     if (response->content == NULL) {
         response->status_code = 500;  // Internal Server Error
         strcpy(response->status_text, "Internal Server Error");
@@ -265,6 +265,7 @@ int generate_response(const http_request_t *request, http_response_t *response,
         fclose(fp);
         return -1;
     }
+    response->content[file_stat.st_size] = '\0';
 
     // check connection close
     if (request->connection_close) {
