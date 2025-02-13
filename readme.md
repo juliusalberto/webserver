@@ -69,11 +69,34 @@ Used both C and Python test suites:
 
 - C tests for unit testing (request parsing, response generation)
 - Python tests for integration testing (actual HTTP requests)
+- Python tests for concurrency
+    - Just normal sanity check - create 2, 50, 100 threads, check the average time for request to be returned
+    - Result: 
+        ```
+        Testing with 10 concurrent requests:
+        Average response time: 0.021s
+        Max response time: 0.024s
+        Min response time: 0.017s
+        Successful requests: 10/10
+
+        Testing with 50 concurrent requests:
+        Average response time: 0.020s
+        Max response time: 0.033s
+        Min response time: 0.009s
+        Successful requests: 50/50
+
+        Testing with 100 concurrent requests:
+        Average response time: 0.025s
+        Max response time: 0.055s
+        Min response time: 0.008s
+        Successful requests: 100/100
+        ```
 - Memory checks using AddressSanitizer
 
 ### Test files:
 1. `tests/test_main.c`: Unit tests
 2. `tests/test.py`: Integration tests
+3. `tests/test_concurrency.py`: Concurrency test
 
 ## Attributes
 The network utilities code (network_utils.c and network_utils.h) is adapted from the Computer Systems: A Programmer's Perspective (CS:APP) textbook.
