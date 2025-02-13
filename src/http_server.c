@@ -3,8 +3,6 @@
 #include "network_utils.h"
 #include <signal.h>
 
-
-
 bool read_request(rio_t* rp, char* dest, int client_fd);
 int init_server(int port);
 int parse_request(const char *raw_request, http_request_t *request);
@@ -12,6 +10,13 @@ int generate_response(const http_request_t *request, http_response_t *response,
                      const char *docroot);
 int send_response(int client_fd, const http_response_t *response);
 int send_error_response(int client_fd, const http_response_t* response);
+void* producer_thread(void* arg);
+void *consumer_thread(void *arg);
+void init_shared_buffer(void); 
+
+// should probably refactor this
+// put it in different 
+sbuf_cond_t shared_buffer;
 
 void handle_sigint(int sig) {
     exit(0);
@@ -336,6 +341,9 @@ int main(int argc, char *argv[]) {
     
     // Initialize server
     int server_fd = init_server(port);
+    pthread_t workers[30];
+    init_thread(workers, 30);
+    init_shared_buffer();
     if (server_fd < 0) {
         fprintf(stderr, "Failed to initialize server\n");
         return 1;
@@ -347,59 +355,20 @@ int main(int argc, char *argv[]) {
     while (1) {
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
-        rio_t rio;
+        
         
         // Accept client connection
         // At this point we're already creating the socket, binding the socket, and listening for 
         // connections
         int client_fd = accept(server_fd, (struct sockaddr*) &client_addr, &client_len);
-        printf("Accepted client\n");
-        if (client_fd < 0) {
-            perror("accept failed");
-            continue;
-        }
-        
-        // TODO: Set socket timeout
-        
-        // TODO: Read request
-        char raw_request[MAX_REQUEST_SIZE];
-        // TODO: Implement reading from client_fd into raw_request
-        // remember that we need to read the whole request (can be multiple )
-        rio_readinitb(&rio, client_fd);
-        bool read_header_status = read_request(&rio, raw_request, client_fd);
-        if (!read_header_status) {
-            // this is when the request size is too large
-            continue;
-        }
 
+        // should def break here and create a worker thread
+        http_task_t* new_request = malloc(sizeof(http_task_t));
+        new_request->client_fd = client_fd;
+        new_request->client_addr = client_addr;
+        new_request->docroot = docroot;
+        add_to_buffer(new_request);
 
-        // Parse request
-        http_request_t request;
-        if (parse_request(raw_request, &request) < 0) {
-            // TODO: Send 400 Bad Request
-            close(client_fd);
-            continue;
-        }
-        
-        // Generate response
-        http_response_t response;
-        if (generate_response(&request, &response, docroot) < 0) {
-            // TODO: Send appropriate error response
-            send_error_response(client_fd, &response);
-            close(client_fd);
-            continue;
-        }
-        
-        // Send response
-        if (send_response(client_fd, &response) < 0) {
-            // TODO: Handle send error
-            close(client_fd);
-            continue;
-        }
-        
-        // TODO: Handle connection: close header
-        
-        close(client_fd);
         // TODO: Free any allocated memory
     }
     
@@ -446,4 +415,115 @@ bool read_request(rio_t* rp, char* dest, int client_fd) {
 
     total += content_length;
     return true;
+}
+
+/*
+HTTP Thread Section
+*/
+
+void add_to_buffer(http_task_t* new_task) {
+    pthread_mutex_lock(&shared_buffer.lock);
+
+    while (shared_buffer.count == MAX_TASK) {
+        pthread_cond_wait(&shared_buffer.not_full, &shared_buffer.lock);
+    }
+
+    shared_buffer.tasks[shared_buffer.rear] = new_task;
+    shared_buffer.rear = (shared_buffer.rear + 1) % MAX_TASK;
+    shared_buffer.count++;
+
+    pthread_cond_signal(&shared_buffer.not_empty);
+    pthread_mutex_unlock(&shared_buffer.lock);
+} 
+
+http_task_t* get_task_from_buffer(void) {
+    pthread_mutex_lock(&shared_buffer.lock);
+    while (shared_buffer.count == 0) {
+        pthread_cond_wait(&shared_buffer.not_empty, &shared_buffer.lock);
+    }
+
+    http_task_t* returned_task = shared_buffer.tasks[shared_buffer.front];
+    shared_buffer.front = (shared_buffer.front + 1) % MAX_TASK;
+    shared_buffer.count--;
+
+
+    pthread_cond_signal(&shared_buffer.not_full);
+    pthread_mutex_unlock(&shared_buffer.lock);
+
+    return returned_task;
+}
+
+void init_shared_buffer() {
+  shared_buffer.count = 0;
+  shared_buffer.front = 0;
+  shared_buffer.rear = 0;
+  pthread_cond_init(&shared_buffer.not_empty, NULL);
+  pthread_cond_init(&shared_buffer.not_full, NULL);
+  pthread_mutex_init(&shared_buffer.lock, NULL);
+}
+
+void *consumer_thread(void *arg) {
+    pthread_detach(pthread_self());
+    int client_fd;
+    rio_t rio;
+    char* docroot;
+
+    while (true) {
+        http_task_t* request = get_task_from_buffer();
+        docroot = request->docroot;
+        client_fd = request->client_fd;
+        
+        printf("Accepted client\n");
+        if (client_fd < 0) {
+            perror("accept failed");
+            continue;
+        }
+        
+        // TODO: Set socket timeout
+        struct timeval timeout;
+        timeout.tv_sec = 5;
+        timeout.tv_usec = 0;
+        setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+        
+        char raw_request[MAX_REQUEST_SIZE];
+        rio_readinitb(&rio, client_fd);
+        bool read_header_status = read_request(&rio, raw_request, client_fd);
+        if (!read_header_status) {
+            // this is when the request size is too large
+            continue;
+        }
+
+        // Parse request
+        http_request_t request;
+        if (parse_request(raw_request, &request) < 0) {
+            // TODO: Send 400 Bad Request
+            close(client_fd);
+            continue;
+        }
+        
+        // Generate response
+        http_response_t response;
+        if (generate_response(&request, &response, docroot) < 0) {
+            // TODO: Send appropriate error response
+            send_error_response(client_fd, &response);
+            close(client_fd);
+            continue;
+        }
+        
+        // Send response
+        if (send_response(client_fd, &response) < 0) {
+            // TODO: Handle send error
+            close(client_fd);
+            continue;
+        }
+        
+        close(client_fd);
+        free(request);
+    }
+}
+
+void init_thread(pthread_t* workers, size_t length) {
+    for (int i = 0; i < length; i++) {
+        pthread_create(workers[i], NULL, consumer_thread, NULL);
+    }
 }

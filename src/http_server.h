@@ -16,7 +16,9 @@
 #define MAX_REQUEST_SIZE 8192
 #define MAX_URI_LENGTH 2048
 #define TIMEOUT_SECS 5
+#define MAX_TASK 100
 #define SERVER_NAME "TritonHTTP/1.0"
+
 
 /* HTTP Request Structure */
 typedef struct {
@@ -40,6 +42,22 @@ typedef struct {
     char* content;
     // TODO: Add more headers as needed
 } http_response_t;
+
+
+typedef struct http_task {
+    int client_fd;
+    struct sockaddr_in client_addr;
+    char* docroot;
+} http_task_t;
+
+typedef struct shared_buffer {
+    pthread_mutex_t lock;
+    pthread_cond_t not_full, not_empty;
+    int count;
+    http_task_t* tasks[MAX_TASK];
+    int front;
+    int rear;
+} sbuf_cond_t;
 
 /* Function declarations */
 
