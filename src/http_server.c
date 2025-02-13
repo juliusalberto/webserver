@@ -4,7 +4,7 @@
 #include <signal.h>
 
 bool read_request(rio_t* rp, char* dest, int client_fd);
-int init_server(int port);
+int init_server(char* port);
 int parse_request(const char *raw_request, http_request_t *request);
 int generate_response(const http_request_t *request, http_response_t *response, 
                      const char *docroot);
@@ -24,40 +24,51 @@ void handle_sigint(int sig) {
     exit(0);
 }
 
-int init_server(int port) {
+int init_server(char* port) {
     int server_fd;
-    struct sockaddr_in address;
-    
-    // Create socket file descriptor
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("socket");
+    struct addrinfo hints, *res;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+
+    int status;
+    if ((status = getaddrinfo(NULL, port, &hints, &res)) < 0) {
+        perror("getaddrinfo");
+        freeaddrinfo(res);
         return -1;
     }
     
-    // Set socket options to reuse address and port
+    // Create socket file descriptor
+    if ((server_fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) < 0) {
+        perror("socket");
+        freeaddrinfo(res);
+        return -1;
+    }
+    
     int opt = 1;
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
         perror("setsockopt failed");
+        freeaddrinfo(res);
         return -1;
     }
     
-    // Setup server address structure
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(port);
-    
     // Bind socket to address
-    if (bind(server_fd, (struct sockaddr*) &address, sizeof(address)) < 0) {
+    if (bind(server_fd, res->ai_addr, res->ai_addrlen) < 0) {
         perror("bind failed");
+        freeaddrinfo(res);
         return -1;
     }
     
     // Listen for connections
     if (listen(server_fd, SOMAXCONN) < 0) {
         perror("listen failed");
+        freeaddrinfo(res);
         return -1;
     }
     
+    freeaddrinfo(res);
     return server_fd;
 }
 
