@@ -10,15 +10,17 @@ int generate_response(const http_request_t *request, http_response_t *response,
                      const char *docroot);
 int send_response(int client_fd, const http_response_t *response);
 int send_error_response(int client_fd, const http_response_t* response);
-void* producer_thread(void* arg);
-void *consumer_thread(void *arg);
 void init_shared_buffer(void); 
+void init_thread(pthread_t* workers, int length);
+void add_to_buffer(http_task_t* new_task);
+void *consumer_thread(void *arg);
 
 // should probably refactor this
 // put it in different 
 sbuf_cond_t shared_buffer;
 
 void handle_sigint(int sig) {
+    (void)sig;
     exit(0);
 }
 
@@ -136,7 +138,7 @@ int parse_request(const char *raw_request, http_request_t *request) {
     }
 
     // if we arrive here it means that we're already in the body
-    if (content_length > sizeof(request->body)) {
+    if ((size_t) content_length > sizeof(request->body)) {
         content_length = sizeof(request->body) - 1;
 
         printf("Body too large!");
@@ -341,8 +343,8 @@ int main(int argc, char *argv[]) {
     
     // Initialize server
     int server_fd = init_server(port);
-    pthread_t workers[30];
-    init_thread(workers, 30);
+    pthread_t workers[100];
+    init_thread(workers, 100);
     init_shared_buffer();
     if (server_fd < 0) {
         fprintf(stderr, "Failed to initialize server\n");
@@ -469,9 +471,9 @@ void *consumer_thread(void *arg) {
     char* docroot;
 
     while (true) {
-        http_task_t* request = get_task_from_buffer();
-        docroot = request->docroot;
-        client_fd = request->client_fd;
+        http_task_t* task = get_task_from_buffer();
+        docroot = task->docroot;
+        client_fd = task->client_fd;
         
         printf("Accepted client\n");
         if (client_fd < 0) {
@@ -518,12 +520,12 @@ void *consumer_thread(void *arg) {
         }
         
         close(client_fd);
-        free(request);
+        free(task);
     }
 }
 
-void init_thread(pthread_t* workers, size_t length) {
+void init_thread(pthread_t* workers, int length) {
     for (int i = 0; i < length; i++) {
-        pthread_create(workers[i], NULL, consumer_thread, NULL);
+        pthread_create(&workers[i], NULL, consumer_thread, NULL);
     }
 }
