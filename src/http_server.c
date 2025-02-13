@@ -353,10 +353,11 @@ int main(int argc, char *argv[]) {
     }
     
     int port = atoi(argv[1]);
+    char* port_str = argv[1];
     char *docroot = argv[2];
     
     // Initialize server
-    int server_fd = init_server(port);
+    int server_fd = init_server(port_str);
     pthread_t workers[100];
     init_thread(workers, 100);
     init_shared_buffer();
@@ -537,6 +538,8 @@ void *consumer_thread(void *arg) {
         close(client_fd);
         free(task);
     }
+
+    return NULL;
 }
 
 void init_thread(pthread_t* workers, int length) {
