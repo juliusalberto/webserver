@@ -72,8 +72,8 @@ Used both C and Python test suites:
 - Memory checks using AddressSanitizer
 
 ### Test files:
-1. tests/test_main.c: Unit tests
-2. tests/test.py: Integration tests
+1. `tests/test_main.c`: Unit tests
+2. `tests/test.py`: Integration tests
 
 ## Attributes
 The network utilities code (network_utils.c and network_utils.h) is adapted from the Computer Systems: A Programmer's Perspective (CS:APP) textbook.
