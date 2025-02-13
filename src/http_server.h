@@ -65,7 +65,7 @@ typedef struct shared_buffer {
  * Initialize server socket
  * Returns: socket file descriptor or -1 on error
  */
-int init_server(int port);
+int init_server(char* port);
 
 /**
  * Parse raw HTTP request into http_request_t structure
