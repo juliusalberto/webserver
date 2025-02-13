@@ -14,10 +14,12 @@ void init_shared_buffer(void);
 void init_thread(pthread_t* workers, int length);
 void add_to_buffer(http_task_t* new_task);
 void *consumer_thread(void *arg);
+void cleanup_server(void);
 
 // should probably refactor this
 // put it in different 
 sbuf_cond_t shared_buffer;
+volatile sig_atomic_t keep_running = 1;
 
 void handle_sigint(int sig) {
     (void)sig;
@@ -385,6 +387,7 @@ int main(int argc, char *argv[]) {
         // TODO: Free any allocated memory
     }
     
+    cleanup_server();
     close(server_fd);
     return 0;
 }
@@ -481,7 +484,7 @@ void *consumer_thread(void *arg) {
     rio_t rio;
     char* docroot;
 
-    while (true) {
+    while (true && keep_running == 1) {
         http_task_t* task = get_task_from_buffer();
         docroot = task->docroot;
         client_fd = task->client_fd;
@@ -539,4 +542,18 @@ void init_thread(pthread_t* workers, int length) {
     for (int i = 0; i < length; i++) {
         pthread_create(&workers[i], NULL, consumer_thread, NULL);
     }
+}
+
+void cleanup_server() {
+    keep_running = 0;
+
+    // wake up thread;
+    pthread_mutex_lock(&shared_buffer.lock);
+    pthread_cond_broadcast(&shared_buffer.not_empty);
+    pthread_cond_broadcast(&shared_buffer.not_full);
+    pthread_mutex_unlock(&shared_buffer.lock);
+
+    sleep(1);
+
+    // pthread_mutex_destroy()
 }
