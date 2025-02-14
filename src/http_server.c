@@ -287,27 +287,35 @@ int send_response(int client_fd, const http_response_t *response) {
     int n_bytes = 0;
     char buf[MAXBUF];
     size_t remaining = MAXBUF;
+    int write_byte = 0;
     
-    n_bytes += snprintf(buf, remaining, "HTTP/1.1 %d %s\r\n", response->status_code, response->status_text);
-    remaining -= n_bytes;
-    n_bytes += snprintf(buf + n_bytes, remaining, "Server: TinyServer\r\n");
-    remaining -= n_bytes;
+    write_byte = snprintf(buf, remaining, "HTTP/1.1 %d %s\r\n", response->status_code, response->status_text);
+    n_bytes += write_byte;
+    remaining -= write_byte;
+    write_byte= snprintf(buf + n_bytes, remaining, "Server: TinyServer\r\n");
+    n_bytes += write_byte;
+    remaining -= write_byte;
 
     if (response->connection_close) {
-        n_bytes += snprintf(buf + n_bytes, remaining, "Connection: close\r\n");
-        remaining -= n_bytes;
+        write_byte = snprintf(buf + n_bytes, remaining, "Connection: close\r\n");
+        n_bytes += write_byte;
+        remaining -= write_byte;
     }
     if (response->status_code == 200) {
-        n_bytes += snprintf(buf + n_bytes, remaining, "Last-Modified: %s\r\n", response->time_str);
-        remaining -= n_bytes;
+        write_byte = snprintf(buf + n_bytes, remaining, "Last-Modified: %s\r\n", response->time_str);
+        n_bytes += write_byte;
+        remaining -= write_byte;
     }
    
-    n_bytes += snprintf(buf + n_bytes, remaining, "Content-length: %lu\r\n", response->content_length);
-    remaining -= n_bytes;
-    n_bytes += snprintf(buf + n_bytes, remaining, "Content-type: %s\r\n", response->content_type);
-    remaining -= n_bytes;
-    n_bytes += snprintf(buf + n_bytes, remaining, "\r\n");
-    remaining -= n_bytes;
+    write_byte = snprintf(buf + n_bytes, remaining, "Content-length: %lu\r\n", response->content_length);
+    n_bytes += write_byte;
+    remaining -= write_byte;
+    write_byte = snprintf(buf + n_bytes, remaining, "Content-type: %s\r\n", response->content_type);
+    n_bytes += write_byte;
+    remaining -= write_byte;
+    write_byte = snprintf(buf + n_bytes, remaining, "\r\n");
+    n_bytes += write_byte;
+    remaining -= write_byte;
 
     if (n_bytes > MAXBUF) {
         printf("Buffer overflow");
@@ -347,6 +355,7 @@ int send_error_response(int client_fd, const http_response_t* response) {
 #ifndef TESTING
 int main(int argc, char *argv[]) {
     signal(SIGINT, handle_sigint);
+    signal(SIGPIPE, SIG_IGN);
     if (argc != 3) {
         fprintf(stderr, "Usage: %s <port> <docroot>\n", argv[0]);
         return 1;
@@ -358,8 +367,8 @@ int main(int argc, char *argv[]) {
     
     // Initialize server
     int server_fd = init_server(port_str);
-    pthread_t workers[100];
-    init_thread(workers, 100);
+    pthread_t workers[5];
+    init_thread(workers, 5);
     init_shared_buffer();
     if (server_fd < 0) {
         fprintf(stderr, "Failed to initialize server\n");
@@ -403,7 +412,6 @@ bool read_request(rio_t* rp, char* dest, int client_fd) {
     while ((curr_size = rio_readlineb(rp, line, MAXLINE)) > 0) {
         if (curr_size + total >= MAX_REQUEST_SIZE) {
             fprintf(stderr, "File too large!");
-            close(client_fd);
             return false;
         }
 
@@ -417,6 +425,10 @@ bool read_request(rio_t* rp, char* dest, int client_fd) {
             // end of headers
             break;
         }
+    }
+
+    if (curr_size == 0) {
+        return false;
     }
 
     // If we're here, it means that we're already at the body
@@ -497,42 +509,45 @@ void *consumer_thread(void *arg) {
             continue;
         }
         
-        // TODO: Set socket timeout
         struct timeval timeout;
-        timeout.tv_sec = 5;
+        timeout.tv_sec = 500;
         timeout.tv_usec = 0;
         setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
-        
-        char raw_request[MAX_REQUEST_SIZE];
-        rio_readinitb(&rio, client_fd);
-        bool read_header_status = read_request(&rio, raw_request, client_fd);
-        if (!read_header_status) {
-            // this is when the request size is too large
-            continue;
-        }
 
-        // Parse request
-        http_request_t request;
-        if (parse_request(raw_request, &request) < 0) {
-            // TODO: Send 400 Bad Request
-            close(client_fd);
-            continue;
-        }
-        
-        // Generate response
-        http_response_t response;
-        if (generate_response(&request, &response, docroot) < 0) {
-            // TODO: Send appropriate error response
-            send_error_response(client_fd, &response);
-            close(client_fd);
-            continue;
-        }
-        
-        // Send response
-        if (send_response(client_fd, &response) < 0) {
-            // TODO: Handle send error
-            close(client_fd);
-            continue;
+        bool connection_alive = true;
+        rio_readinitb(&rio, client_fd);
+
+        while (connection_alive) {
+            char raw_request[MAX_REQUEST_SIZE];
+            bool read_header_status = read_request(&rio, raw_request, client_fd);
+            if (!read_header_status) {
+                // this is when the request size is too large
+                break;
+            }
+
+            // Parse request
+            http_request_t request;
+            if (parse_request(raw_request, &request) < 0) {
+                // TODO: Send 400 Bad Request
+                continue;
+            }
+
+            if (request.connection_close) {
+                connection_alive = false;
+            }
+            
+            // Generate response
+            http_response_t response;
+            memset(&response, 0, sizeof(http_response_t));
+            if (generate_response(&request, &response, docroot) < 0) {
+                send_error_response(client_fd, &response);
+                continue;
+            }
+            
+            // Send response
+            if (send_response(client_fd, &response) < 0) {
+                break;
+            }
         }
         
         close(client_fd);

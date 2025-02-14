@@ -23,7 +23,7 @@ class TestHTTPServer(unittest.TestCase):
             test_request = (
                 "GET /tests/resources/test_send.txt HTTP/1.1\r\n"
                 "Host: www.example.com\r\n"
-                "Connection: keep-alive\r\n"
+                "Connection: close\r\n"
                 "\r\n"
             )
             s.sendall(test_request.encode())
@@ -74,7 +74,7 @@ class TestHTTPServer(unittest.TestCase):
             test_request = (
                 "GET /nonexistent.txt HTTP/1.1\r\n"
                 "Host: www.example.com\r\n"
-                "Connection: keep-alive\r\n"
+                "Connection: close\r\n"
                 "\r\n"
             )
             s.sendall(test_request.encode())
@@ -98,7 +98,7 @@ class TestHTTPServer(unittest.TestCase):
             test_request = (
                 f"GET /tests/resources/forbidden.txt HTTP/1.1\r\n"
                 "Host: www.example.com\r\n"
-                "Connection: keep-alive\r\n"
+                "Connection: close\r\n"
                 "\r\n"
             )
             s.sendall(test_request.encode())
@@ -125,11 +125,11 @@ class TestHTTPServer(unittest.TestCase):
             
             # Read first response
             f = s.makefile('rb')
-            self._read_and_verify_response(f)
+            self._read_and_verify_response(f, "test_send.txt")
             
             # Second request on same connection
             s.sendall(test_request.encode())
-            self._read_and_verify_response(f)
+            self._read_and_verify_response(f, "test_send.txt")
 
     def test_pipelining(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -149,9 +149,12 @@ class TestHTTPServer(unittest.TestCase):
             # Read all responses
             f = s.makefile('rb')
             for _ in range(3):
-                self._read_and_verify_response(f)
+                self._read_and_verify_response(f, "test_send.txt")
 
-    def _read_and_verify_response(self, f):
+    def _read_and_verify_response(self, f, filename):
+        if filename is None:
+            filename = self.test_file
+
         # Helper method to read and verify a response
         response_line = f.readline().decode()
         protocol, status_code, status_text = response_line.split(' ', 2)
@@ -172,8 +175,9 @@ class TestHTTPServer(unittest.TestCase):
         self.assertIsNotNone(content_length)
         content = f.read(content_length)
         
-        with open(self.test_file, 'rb') as test_f:
-            expected_content = test_f.read()
+        expected_path = self.test_dir / filename
+        with open(expected_path, 'rb') as file_obj:
+            expected_content = file_obj.read()
         self.assertEqual(content, expected_content)
 
     def test_complex_pipelining(self):
@@ -218,10 +222,10 @@ class TestHTTPServer(unittest.TestCase):
             f = s.makefile('rb')
             
             # verify responses come back in order
-            self._verify_response(f, "small.txt", 4)
+            self._read_and_verify_response(f, "small.txt")
             self._verify_404_response(f)
-            self._verify_response(f, "large.txt", 8192)
-            self._verify_response(f, "test_send.txt", 10)
+            self._read_and_verify_response(f, "large.txt")
+            self._read_and_verify_response(f, "test_send.txt")
 
     def _verify_404_response(self, f):
         response_line = f.readline().decode()
