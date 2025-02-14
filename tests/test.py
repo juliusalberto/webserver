@@ -176,6 +176,64 @@ class TestHTTPServer(unittest.TestCase):
             expected_content = test_f.read()
         self.assertEqual(content, expected_content)
 
+    def test_complex_pipelining(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((self.HOST, self.PORT))
+            
+            # create some files w different sizes for better testing
+            small_file = self.test_dir / 'small.txt'
+            large_file = self.test_dir / 'large.txt'
+            
+            with open(small_file, 'w') as f:
+                f.write("smol")
+            with open(large_file, 'w') as f:
+                f.write("b" * 8192)  # bigger than typical buffer size
+            
+            # multiple requests with different files + some 404s mixed in
+            requests = [
+                # valid file
+                "GET /tests/resources/small.txt HTTP/1.1\r\n"
+                "Host: www.example.com\r\n"
+                "Connection: keep-alive\r\n\r\n",
+                
+                # nonexistent file
+                "GET /nope.txt HTTP/1.1\r\n"
+                "Host: www.example.com\r\n"
+                "Connection: keep-alive\r\n\r\n",
+                
+                # large file to test buffering
+                "GET /tests/resources/large.txt HTTP/1.1\r\n"
+                "Host: www.example.com\r\n"
+                "Connection: keep-alive\r\n\r\n",
+                
+                # another small file
+                "GET /tests/resources/test_send.txt HTTP/1.1\r\n"
+                "Host: www.example.com\r\n"
+                "Connection: close\r\n\r\n"
+            ]
+            
+            # send everything at once
+            s.sendall(''.join(requests).encode())
+            
+            f = s.makefile('rb')
+            
+            # verify responses come back in order
+            self._verify_response(f, "small.txt", 4)
+            self._verify_404_response(f)
+            self._verify_response(f, "large.txt", 8192)
+            self._verify_response(f, "test_send.txt", 10)
+
+    def _verify_404_response(self, f):
+        response_line = f.readline().decode()
+        protocol, status_code, status_text = response_line.split(' ', 2)
+        self.assertEqual(status_code, "404")
+        
+        # skip headers
+        while True:
+            line = f.readline().decode().strip()
+            if not line:
+                break
+
 
 if __name__ == '__main__':
     unittest.main()
