@@ -559,5 +559,8 @@ void cleanup_server() {
 
     sleep(1);
 
-    // pthread_mutex_destroy()
+    pthread_mutex_destroy(&shared_buffer.lock);
+    pthread_cond_destroy(&shared_buffer.not_empty);
+    pthread_cond_destroy(&shared_buffer.not_full);
+    return;
 }
