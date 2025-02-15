@@ -342,7 +342,12 @@ int send_error_response(int client_fd, const http_response_t* response) {
     char buf[MAXBUF];
     int n_bytes = 0;
     
-    n_bytes += snprintf(buf, MAXBUF, "HTTP/1.1 %d %s\r\n", response->status_code, response->status_text);
+    n_bytes += snprintf(buf, MAXBUF, 
+    "HTTP/1.1 %d %s\r\n"
+    "Content-Length: 0\r\n"
+    "\r\n", 
+    response->status_code, 
+    response->status_text);
     if (rio_writen(client_fd, buf, strlen(buf)) != n_bytes) {
         printf("Wrong header length being sent");
         return -1;
