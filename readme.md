@@ -14,9 +14,9 @@ This project implements a subset of the HTTP/1.1 protocol. The server (is planne
 - [x] Complete request parsing implementation
 - [x] Response generation
 - [x] Response sending
-- [ ] Connection timeout handling
+- [x] Connection timeout handling
 - [x] Threading/concurrency support
-- [ ] Connection: close header handling
+- [x] Connection: close header handling
 - [x] Error response handling (400, 403, 404)
 - [x] Memory management and cleanup
 

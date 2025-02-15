@@ -74,9 +74,7 @@ int init_server(char* port) {
     return server_fd;
 }
 
-// TODO: Implement parse_request()
 int parse_request(const char *raw_request, http_request_t *request) {
-    // This is a basic example. You need to implement proper parsing
     if (raw_request == NULL || request == NULL) {
         return -1;
     }
@@ -372,8 +370,8 @@ int main(int argc, char *argv[]) {
     
     // Initialize server
     int server_fd = init_server(port_str);
-    pthread_t workers[5];
-    init_thread(workers, 5);
+    pthread_t workers[3];
+    init_thread(workers, 3);
     init_shared_buffer();
     if (server_fd < 0) {
         fprintf(stderr, "Failed to initialize server\n");
@@ -515,7 +513,7 @@ void *consumer_thread(void *arg) {
         }
         
         struct timeval timeout;
-        timeout.tv_sec = 500;
+        timeout.tv_sec = 5;
         timeout.tv_usec = 0;
         setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 
