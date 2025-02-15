@@ -1,7 +1,9 @@
 CC=gcc
 CFLAGS=-Wall -Wextra -g
-LDFLAGS=-pthread
-SANITIZE_FLAGS = -fsanitize=address -fno-omit-frame-pointer
+# CPPFLAGS += -I/opt/homebrew/opt/llvm/include
+# LDFLAGS  += -L/opt/homebrew/opt/llvm/lib -pthread
+LDFLAGS += -pthread
+# SANITIZE_FLAGS = -fsanitize=address -fno-omit-frame-pointer
 
 # Directories
 SRC_DIR=src
@@ -25,16 +27,16 @@ all: $(TARGET)
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
-$(TARGET): CFLAGS += -U TESTING $(SANITIZE_FLAGS)
+$(TARGET): CFLAGS += -U TESTING 
 $(TARGET): $(OBJ_DIR) $(OBJS)
-	$(CC) $(OBJS) -o $(TARGET) $(LDFLAGS) $(SANITIZE_FLAGS)
+	$(CC) $(OBJS) -o $(TARGET) $(LDFLAGS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Test compilation - define TESTING
 test: CFLAGS += -DTESTING
-test: $(TEST_TARGET)
+test: $(OBJ_DIR) $(TEST_TARGET)
 	./$(TEST_TARGET)
 
 $(TEST_TARGET): $(OBJS) $(TEST_OBJS) 
