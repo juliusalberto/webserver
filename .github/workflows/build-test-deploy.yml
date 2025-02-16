@@ -11,13 +11,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
+      
       - name: Install dependencies
-        run: | 
+        run: |
           sudo apt-get update
           sudo apt-get install -y build-essential clang make python3
 
-            - name: Build server for tests
+      - name: Build server for tests
         run: make
       
       - name: Run Python integration tests
@@ -32,8 +32,9 @@ jobs:
           make clean
           make test
           make clean
+
   build-and-push:
-    needs: test 
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,4 +57,4 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: juliusliem/http-server:latest
+          tags: yourusername/http-server:latest
