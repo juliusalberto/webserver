@@ -126,6 +126,7 @@ class TestHTTPServer(unittest.TestCase):
 
         # Helper method to read and verify a response
         response_line = f.readline().decode()
+        print(f"response line: {response_line}")
         protocol, status_code, status_text = response_line.split(' ', 2)
 
         if status_code != "200":
