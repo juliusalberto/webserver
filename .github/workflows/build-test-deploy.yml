@@ -32,8 +32,7 @@ jobs:
           make clean
           make test
           make clean
-
- build-and-push:
+  build-and-push:
     needs: test 
     runs-on: ubuntu-latest
     steps:
