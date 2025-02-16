@@ -1,0 +1,60 @@
+name: Build, Test, and Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: | 
+          sudo apt-get update
+          sudo apt-get install -y build-essential clang make python3
+
+            - name: Build server for tests
+        run: make
+      
+      - name: Run Python integration tests
+        run: |
+          ./httpd 1025 ./www &
+          sleep 2  # Give server time to start
+          python3 tests/test.py
+          kill $(jobs -p)
+
+      - name: Run make test
+        run: |
+          make clean
+          make test
+          make clean
+
+ build-and-push:
+    needs: test 
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+        
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: juliusliem/http-server:latest
