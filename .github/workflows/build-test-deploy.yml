@@ -25,9 +25,12 @@ jobs:
       - name: List repository files
         run: ls -al
 
+      - name: List file in tests
+        run: ls tests -al
+
       - name: Run Python integration tests
         run: |
-          ./httpd 1025 . &    # Use current directory (repo root) as docroot
+          ./httpd 1025 /home/runner/work/webserver/webserver &    # Use current directory (repo root) as docroot
           sleep 2  # Give server time to start
           python3 tests/test.py
           kill $(jobs -p)
