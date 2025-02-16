@@ -22,7 +22,7 @@ jobs:
       
       - name: Run Python integration tests
         run: |
-          ./httpd 1025 ./www &
+          ./httpd 1025 . &    # Use current directory (repo root) as docroot
           sleep 2  # Give server time to start
           python3 tests/test.py
           kill $(jobs -p)
