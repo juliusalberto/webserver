@@ -534,6 +534,7 @@ void *consumer_thread(void *arg) {
                 // TODO: Send 400 Bad Request
                 continue;
             }
+            printf("URI: %s\n", request.uri);
 
             if (request.connection_close) {
                 connection_alive = false;
