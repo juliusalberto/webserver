@@ -29,43 +29,7 @@ class TestHTTPServer(unittest.TestCase):
             s.sendall(test_request.encode())
             
             f = s.makefile('rb')
-            response_line = f.readline().decode()
-            print(response_line)
-            protocol, status_code, status_text = response_line.split(' ', 2)
-            status_text = status_text.strip()
-            
-            self.assertEqual(protocol, "HTTP/1.1")
-            self.assertEqual(status_code, "200")
-            self.assertEqual(status_text, "OK")
-
-            header = ""
-            
-            content_length = None
-            while True:
-                line = f.readline().decode().strip()
-                print(line)
-                if not line:  
-                    break
-                    
-                if ':' in line:
-                    key, value = line.split(':', 1)
-                    if key.lower() == 'content-length':
-                        content_length = int(value.strip())
-            
-            print(header)
-            self.assertIsNotNone(content_length, "No Content-Length header found")
-            
-            # Read response body
-            content = f.read(content_length)
-            
-            # Compare with expected content
-            with open(self.test_file, 'rb') as f:
-                expected_content = f.read()
-                
-            self.assertEqual(len(expected_content), content_length)
-            self.assertEqual(content, expected_content)
-
-            print(f"content: {content}")
+            self._read_and_verify_response(f, "test_send.txt")
 
     def test_send_response_404(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -80,11 +44,7 @@ class TestHTTPServer(unittest.TestCase):
             s.sendall(test_request.encode())
             
             f = s.makefile('rb')
-            response_line = f.readline().decode()
-            protocol, status_code, status_text = response_line.split(' ', 2)
-            
-            self.assertEqual(status_code, "404")
-            self.assertEqual(status_text.strip(), "Not Found")
+            self._verify_404_response(f)
 
     def test_send_response_403(self):
         forbidden_file = self.test_dir / 'forbidden.txt'
@@ -158,6 +118,11 @@ class TestHTTPServer(unittest.TestCase):
         # Helper method to read and verify a response
         response_line = f.readline().decode()
         protocol, status_code, status_text = response_line.split(' ', 2)
+
+        if status_code != "200":
+            print(f"ERROR: File not found. Response: {response_line}")
+            print(f"Current directory contents: {os.listdir('.')}") 
+            exit(1)
         
         self.assertEqual(protocol, "HTTP/1.1")
         self.assertEqual(status_code, "200")
