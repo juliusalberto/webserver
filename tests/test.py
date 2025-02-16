@@ -17,9 +17,11 @@ class TestHTTPServer(unittest.TestCase):
             f.write("helloworld")
 
     def test_send_response_good(self):
+        print("starting test_send_response_good")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(10) 
             s.connect((self.HOST, self.PORT))
-            
+
             test_request = (
                 "GET /tests/resources/test_send.txt HTTP/1.1\r\n"
                 "Host: www.example.com\r\n"
@@ -32,9 +34,11 @@ class TestHTTPServer(unittest.TestCase):
             self._read_and_verify_response(f, "test_send.txt")
 
     def test_send_response_404(self):
+        print("starting test_send_response_404")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(10) 
             s.connect((self.HOST, self.PORT))
-            
+
             test_request = (
                 "GET /nonexistent.txt HTTP/1.1\r\n"
                 "Host: www.example.com\r\n"
@@ -47,12 +51,14 @@ class TestHTTPServer(unittest.TestCase):
             self._verify_404_response(f)
 
     def test_send_response_403(self):
+        print("starting test_send_response_403")
         forbidden_file = self.test_dir / 'forbidden.txt'
         with open(forbidden_file, 'w') as f:
             f.write("secret")
         os.chmod(forbidden_file, 0o200)  # Write-only permissions
         
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(10)
             s.connect((self.HOST, self.PORT))
             
             test_request = (
@@ -71,10 +77,11 @@ class TestHTTPServer(unittest.TestCase):
             self.assertEqual(status_text.strip(), "Forbidden")
 
     def test_keep_alive(self):
+        print("starting test_keepalive")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(10)
             s.connect((self.HOST, self.PORT))
             
-            # First request
             test_request = (
                 "GET /tests/resources/test_send.txt HTTP/1.1\r\n"
                 "Host: www.example.com\r\n"
@@ -92,7 +99,9 @@ class TestHTTPServer(unittest.TestCase):
             self._read_and_verify_response(f, "test_send.txt")
 
     def test_pipelining(self):
+        print("starting test_pipelining")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(10)
             s.connect((self.HOST, self.PORT))
             
             # Send multiple requests without waiting for responses
@@ -146,7 +155,9 @@ class TestHTTPServer(unittest.TestCase):
         self.assertEqual(content, expected_content)
 
     def test_complex_pipelining(self):
+        print("starting test_complex_pipelining")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(10)
             s.connect((self.HOST, self.PORT))
             
             # create some files w different sizes for better testing
