@@ -370,8 +370,8 @@ int main(int argc, char *argv[]) {
     
     // Initialize server
     int server_fd = init_server(port_str);
-    pthread_t workers[3];
-    init_thread(workers, 3);
+    pthread_t workers[5];
+    init_thread(workers, 5);
     init_shared_buffer();
     if (server_fd < 0) {
         fprintf(stderr, "Failed to initialize server\n");
