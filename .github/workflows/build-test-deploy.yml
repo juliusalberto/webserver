@@ -38,6 +38,9 @@ jobs:
       - name: create obj directory
         run: mkdir -p obj
 
+      - name: Verify if 'obj' directory exists
+        run: ls -l
+
       - name: Run make test
         run: |
           make clean
