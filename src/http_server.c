@@ -15,6 +15,7 @@ void init_thread(pthread_t* workers, int length);
 void add_to_buffer(http_task_t* new_task);
 void *consumer_thread(void *arg);
 void cleanup_server(void);
+void reset_request(http_request_t *request);
 
 // should probably refactor this
 // put it in different 
@@ -530,6 +531,7 @@ void *consumer_thread(void *arg) {
 
             // Parse request
             http_request_t request;
+            reset_request(&request);
             if (parse_request(raw_request, &request) < 0) {
                 // TODO: Send 400 Bad Request
                 continue;
@@ -560,6 +562,16 @@ void *consumer_thread(void *arg) {
 
     return NULL;
 }
+
+void reset_request(http_request_t *request) {
+    memset(request->method, 0, sizeof(request->method));
+    memset(request->uri, 0, sizeof(request->uri));
+    memset(request->version, 0, sizeof(request->version));
+    memset(request->host, 0, sizeof(request->host));
+    request->connection_close = false;  
+    memset(request->body, 0, sizeof(request->body));
+}
+
 
 void init_thread(pthread_t* workers, int length) {
     for (int i = 0; i < length; i++) {
