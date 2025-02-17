@@ -30,18 +30,35 @@ static char* PORT = "1025";
     } \
 } while (0)
 
-static const char *docroot = "/private/tmp/test_www";
-static const char *test_file_path = "/private/tmp/test_www/test.txt";
-static const char *forbidden_file_path = "/private/tmp/test_www/forbidden.txt";
+static char docroot[256];
+static char test_file_path[256];
+static char forbidden_file_path[256];
 
 int main(void) {
     printf("Running HTTP parser tests...\n");
+
+    char cwd[256];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        printf("Current working directory: %s\n", cwd);
+    } else {
+        perror("getcwd failed");
+    }
+
+    snprintf(docroot, sizeof(docroot), "%s/tests/resources", cwd);
+    snprintf(test_file_path, sizeof(test_file_path), "%s/tests/resources/test_c.txt", cwd);
+    snprintf(forbidden_file_path, sizeof(forbidden_file_path), "%s/tests/resources/forbidden.txt", cwd);
+
+    // Check the constructed paths
+    printf("Docroot: %s\n", docroot);
+    printf("Test file path: %s\n", test_file_path);
+    printf("Forbidden file path: %s\n", forbidden_file_path);
+
 
     test_parse_request();
     test_generate_response();
     
     // Final cleanup (in case all tests pass)
-    cleanup();
+    // cleanup();
     
     printf("All tests passed!\n");
     return 0;
@@ -108,6 +125,7 @@ void test_generate_response(void) {
     // -----------------------------------------------------
     const char *doc_text = "Hello world!";
     FILE* fp = fopen(test_file_path, "w");
+    printf("test file path: %s\n", test_file_path);
     if (fp == NULL) {
         perror("fopen test.txt");
         exit(1);
@@ -127,7 +145,7 @@ void test_generate_response(void) {
     strftime(time_str, sizeof(time_str), "%a, %d %b %Y %H:%M:%S GMT", tm_info);
 
     char test_request[] = 
-        "GET /test.txt HTTP/1.1\r\n"
+        "GET /test_c.txt HTTP/1.1\r\n"
         "Host: www.example.com\r\n"
         "Connection: keep-alive\r\n"
         "\r\n";
