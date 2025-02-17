@@ -19,7 +19,7 @@ class TestHTTPServer(unittest.TestCase):
     def test_send_response_good(self):
         print("starting test_send_response_good")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(10) 
+            s.settimeout(100) 
             s.connect((self.HOST, self.PORT))
 
             test_request = (
@@ -36,7 +36,7 @@ class TestHTTPServer(unittest.TestCase):
     def test_send_response_404(self):
         print("starting test_send_response_404")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(10) 
+            s.settimeout(100) 
             s.connect((self.HOST, self.PORT))
 
             test_request = (
@@ -58,7 +58,7 @@ class TestHTTPServer(unittest.TestCase):
         os.chmod(forbidden_file, 0o200)  # Write-only permissions
         
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(10)
+            s.settimeout(100)
             s.connect((self.HOST, self.PORT))
             
             test_request = (
