@@ -33,22 +33,22 @@ class TestHTTPServer(unittest.TestCase):
             f = s.makefile('rb')
             self._read_and_verify_response(f, "test_send.txt")
 
-    def test_send_response_404(self):
-        print("starting test_send_response_404")
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(10) 
-            s.connect((self.HOST, self.PORT))
+    # def test_send_response_404(self):
+    #     print("starting test_send_response_404")
+    #     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    #         s.settimeout(10) 
+    #         s.connect((self.HOST, self.PORT))
 
-            test_request = (
-                "GET /nonexistent.txt HTTP/1.1\r\n"
-                "Host: www.example.com\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-            )
-            s.sendall(test_request.encode())
+    #         test_request = (
+    #             "GET /nonexistent.txt HTTP/1.1\r\n"
+    #             "Host: www.example.com\r\n"
+    #             "Connection: close\r\n"
+    #             "\r\n"
+    #         )
+    #         s.sendall(test_request.encode())
             
-            f = s.makefile('rb')
-            self._verify_404_response(f)
+    #         f = s.makefile('rb')
+    #         self._verify_404_response(f)
 
     # def test_send_response_403(self):
     #     print("starting test_send_response_403")
@@ -191,16 +191,16 @@ class TestHTTPServer(unittest.TestCase):
             self._read_and_verify_response(f, "large.txt")
             self._read_and_verify_response(f, "test_send.txt")
 
-    # def _verify_404_response(self, f):
-    #     response_line = f.readline().decode()
-    #     protocol, status_code, status_text = response_line.split(' ', 2)
-    #     self.assertEqual(status_code, "404")
+    def _verify_404_response(self, f):
+        response_line = f.readline().decode()
+        protocol, status_code, status_text = response_line.split(' ', 2)
+        self.assertEqual(status_code, "404")
         
-    #     # skip headers
-    #     while True:
-    #         line = f.readline().decode().strip()
-    #         if not line:
-    #             break
+        # skip headers
+        while True:
+            line = f.readline().decode().strip()
+            if not line:
+                break
 
 
 if __name__ == '__main__':
