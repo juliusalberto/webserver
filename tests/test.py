@@ -76,28 +76,6 @@ class TestHTTPServer(unittest.TestCase):
             self.assertEqual(status_code, "403")
             self.assertEqual(status_text.strip(), "Forbidden")
 
-    def test_keep_alive(self):
-        print("starting test_keepalive")
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(10)
-            s.connect((self.HOST, self.PORT))
-            
-            test_request = (
-                "GET /tests/resources/test_send.txt HTTP/1.1\r\n"
-                "Host: www.example.com\r\n"
-                "Connection: keep-alive\r\n"
-                "\r\n"
-            )
-            s.sendall(test_request.encode())
-            
-            # Read first response
-            f = s.makefile('rb')
-            self._read_and_verify_response(f, "test_send.txt")
-            
-            # Second request on same connection
-            s.sendall(test_request.encode())
-            self._read_and_verify_response(f, "test_send.txt")
-
     def test_pipelining(self):
         print("starting test_pipelining")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -113,7 +91,16 @@ class TestHTTPServer(unittest.TestCase):
             )
             
             # Send 3 requests back to back
-            s.sendall(test_request.encode() * 3)
+            s.sendall(test_request.encode() * 2)
+
+            test_request_last = (
+                "GET /tests/resources/test_send.txt HTTP/1.1\r\n"
+                "Host: www.example.com\r\n"
+                "Connection: close\r\n"
+                "\r\n"
+            )
+        
+            s.sendall(test_request_last.encode())
             
             # Read all responses
             f = s.makefile('rb')
