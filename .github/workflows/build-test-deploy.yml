@@ -71,4 +71,4 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
-          tags: yourusername/http-server:latest
+          tags: juliusliem/http-server:latest
