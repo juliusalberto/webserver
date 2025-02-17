@@ -10,6 +10,9 @@ SRC_DIR=src
 TEST_DIR=tests
 OBJ_DIR=obj
 
+$(OBJ_DIR):
+	mkdir -p $(OBJ_DIR)
+
 # Main program
 TARGET=httpd
 SRCS=$(wildcard $(SRC_DIR)/*.c)
@@ -23,9 +26,6 @@ TEST_OBJS=$(TEST_SRCS:$(TEST_DIR)/%.c=$(OBJ_DIR)/%.o)
 .PHONY: all clean test memcheck
 
 all: $(TARGET)
-
-$(OBJ_DIR):
-	mkdir -p $(OBJ_DIR)
 
 $(TARGET): CFLAGS += -U TESTING 
 $(TARGET): $(OBJ_DIR) $(OBJS)
