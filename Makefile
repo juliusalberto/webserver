@@ -10,9 +10,6 @@ SRC_DIR=src
 TEST_DIR=tests
 OBJ_DIR=obj
 
-$(OBJ_DIR):
-	mkdir -p $(OBJ_DIR)
-
 # Main program
 TARGET=httpd
 SRCS=$(wildcard $(SRC_DIR)/*.c)
@@ -27,6 +24,9 @@ TEST_OBJS=$(TEST_SRCS:$(TEST_DIR)/%.c=$(OBJ_DIR)/%.o)
 
 all: $(TARGET)
 
+$(OBJ_DIR):
+	mkdir -p $(OBJ_DIR)
+
 $(TARGET): CFLAGS += -U TESTING 
 $(TARGET): $(OBJ_DIR) $(OBJS)
 	$(CC) $(OBJS) -o $(TARGET) $(LDFLAGS)
@@ -36,7 +36,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 
 # Test compilation - define TESTING
 test: CFLAGS += -DTESTING
-test: $(OBJ_DIR) $(TEST_TARGET)
+test: | $(OBJ_DIR) $(TEST_TARGET)
 	./$(TEST_TARGET)
 
 $(TEST_TARGET): $(OBJS) $(TEST_OBJS) 
