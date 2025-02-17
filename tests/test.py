@@ -191,16 +191,16 @@ class TestHTTPServer(unittest.TestCase):
             self._read_and_verify_response(f, "large.txt")
             self._read_and_verify_response(f, "test_send.txt")
 
-    def _verify_404_response(self, f):
-        response_line = f.readline().decode()
-        protocol, status_code, status_text = response_line.split(' ', 2)
-        self.assertEqual(status_code, "404")
+    # def _verify_404_response(self, f):
+    #     response_line = f.readline().decode()
+    #     protocol, status_code, status_text = response_line.split(' ', 2)
+    #     self.assertEqual(status_code, "404")
         
-        # skip headers
-        while True:
-            line = f.readline().decode().strip()
-            if not line:
-                break
+    #     # skip headers
+    #     while True:
+    #         line = f.readline().decode().strip()
+    #         if not line:
+    #             break
 
 
 if __name__ == '__main__':
