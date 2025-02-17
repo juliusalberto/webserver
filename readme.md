@@ -22,6 +22,9 @@ This project implements a subset of the HTTP/1.1 protocol. The server (is planne
 
 ## Building and Running
 
+### Docker
+The docker image can be found here: [docker hub](https://hub.docker.com/r/juliusliem/http-server)
+
 ### Prerequisites
 - POSIX-compliant system
 - C/C++ compiler with C++11 support
