@@ -36,8 +36,8 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 
 # Test compilation - define TESTING
 test: CFLAGS += -DTESTING
-test: mkdir -p $(OBJ_DIR)
-	$(OBJ_DIR) $(TEST_TARGET)
+test: | $(OBJ_DIR)
+	$(MAKE) $(TEST_TARGET)
 	./$(TEST_TARGET)
 
 $(TEST_TARGET): $(OBJS) $(TEST_OBJS) 
