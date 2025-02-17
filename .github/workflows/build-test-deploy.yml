@@ -35,6 +35,9 @@ jobs:
           python3 tests/test.py
           kill $(jobs -p)
 
+      - name: create obj directory
+        run: mkdir -p obj
+
       - name: Run make test
         run: |
           make clean
